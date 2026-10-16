@@ -4,11 +4,14 @@
     - Tweaks tab  : safe tweaks, every change is backed up and can be undone
 
     Run from file : powershell -ExecutionPolicy Bypass -File .\Muayir.ps1
-    Run online    : irm "https://raw.githubusercontent.com/Muayir/Muayir/main/Muayir.ps1" | iex
+    Run online    : irm muayir.ae/win | iex
 #>
 
-# Put your GitHub raw link here (used to relaunch as admin when started with irm | iex)
-$ScriptUrl = 'https://raw.githubusercontent.com/Muayir/Muayir/main/Muayir.ps1'
+# Short link (muayir.ae/win serves the latest Muayir.ps1 from GitHub). Used to relaunch as admin.
+$ScriptUrl = 'https://muayir.ae/win'
+
+# Your support/donation link (Ko-fi, Buy Me a Coffee, PayPal.me...). Leave empty to hide the button.
+$SupportUrl = ''
 
 # ---------- Admin check: relaunch elevated if needed ----------
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -71,9 +74,8 @@ Write-Neon $Banner
 Write-Host ''
 Write-Neon "========================  $ToolName  ========================" @(255,43,214) @(0,240,255)
 Write-Neon "====================  Windows Toolbox  ====================" @(57,255,136) @(0,240,255)
-Write-Host ''
-
-# ============================ Core (shared with background tasks) ============================
+if ($SupportUrl) { Write-Neon "  <3  Support Muayir: $SupportUrl" @(255,43,214) @(255,120,230) }
+X (shared with background tasks) ============================
 $Core = {
     $ErrorActionPreference = 'Stop'
     $BackupDir  = Join-Path $env:LOCALAPPDATA 'Muayir'
@@ -187,6 +189,13 @@ $Core = {
            Desc = 'Start menu search only shows local results.'
            Apply = { Set-Reg 'HKCU:\Software\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 1 } }
 
+        @{ Id = 'Tips'; Group = 'Essential'; Rec = $true; Name = 'Disable Windows tips and suggestions'
+           Desc = 'Stops ads and app suggestions in Start, Settings and the lock screen.'
+           Apply = {
+               $p = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+               Set-Reg $p 'SubscribedContent-338389Enabled' 0; Set-Reg $p 'SubscribedContent-310093Enabled' 0
+               Set-Reg $p 'SystemPaneSuggestionsEnabled' 0; Set-Reg $p 'SoftLandingEnabled' 0 } }
+
         @{ Id = 'GameDVR'; Group = 'Gaming'; Rec = $true; Name = 'Disable Game DVR'
            Desc = 'Turns off background game recording that can cost FPS.'
            Apply = {
@@ -218,6 +227,12 @@ $Core = {
            Apply = {
                $p = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
                Set-Reg $p 'AppsUseLightTheme' 0; Set-Reg $p 'SystemUsesLightTheme' 0 } }
+        @{ Id = 'Copilot'; Group = 'Customize'; Rec = $false; Name = 'Turn off Copilot'
+           Desc = 'Hides Windows Copilot for this user.'
+           Apply = { Set-Reg 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' 1 } }
+        @{ Id = 'Widgets'; Group = 'Customize'; Rec = $false; Name = 'Turn off Widgets'
+           Desc = 'Removes the news and weather Widgets board from the taskbar.'
+           Apply = { Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests' 0 } }
         @{ Id = 'EndTask'; Group = 'Customize'; Rec = $false; Name = 'End task in taskbar (Win 11)'
            Desc = 'Adds End task when right-clicking apps in the taskbar.'
            Apply = { Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings' 'TaskbarEndTask' 1 } }
@@ -271,7 +286,7 @@ $Apps = [ordered]@{
         @('Teams','Microsoft.Teams','microsoft-teams'), @('Thunderbird','Mozilla.Thunderbird','thunderbird'), @('TeamSpeak','TeamSpeakSystems.TeamSpeakClient','teamspeak') )
     'Games' = @(
         @('Steam','Valve.Steam','steam'), @('Epic Games','EpicGames.EpicGamesLauncher','epic-games'), @('EA App','ElectronicArts.EADesktop','ea.com'),
-        @('Ubisoft Connect','Ubisoft.Connect','ubisoft.com'), @('GOG Galaxy','GOG.Galaxy','gog.com'), @('Battle.net','Blizzard.BattleNet','battle.net'),
+        @('Ubisoft Connect','Ubisoft.Connect','light:ubisoft.com'), @('GOG Galaxy','GOG.Galaxy','gog.com'), @('Battle.net','Blizzard.BattleNet','battle.net'),
         @('Xbox','9MV0B5HZVK9Z','xbox'), @('Minecraft Launcher','Mojang.MinecraftLauncher','minecraft'), @('Prism Launcher','PrismLauncher.PrismLauncher','prismlauncher.org') )
     'Gaming Tools' = @(
         @('MSI Afterburner','Guru3D.Afterburner','msi.com'), @('Process Lasso','BitSum.ProcessLasso','bitsum.com'), @('HWiNFO','REALiX.HWiNFO','hwinfo.com'),
@@ -450,6 +465,8 @@ $Apps = [ordered]@{
         <Button x:Name="TabInstall" Content="Install" Style="{StaticResource TopBtn}"/>
         <Button x:Name="TabTweaks"  Content="Tweaks"  Style="{StaticResource TopBtn}"/>
       </StackPanel>
+      <Button x:Name="BtnSupport" DockPanel.Dock="Right" Content="&#x2665;  Support" Style="{StaticResource TopBtn}"
+              Foreground="#ff2bd6" BorderBrush="#ff2bd6" Background="#2a0a24" Margin="12,0,0,0" ToolTip="Support Muayir"/>
       <Grid Margin="12,0,0,0">
         <TextBox x:Name="Search" Height="36" FontSize="14" Background="#12101c" Foreground="#eae6ff"
                  BorderBrush="#2c2645" BorderThickness="1.5" CaretBrush="#00f0ff" SelectionBrush="#ff2bd6"
@@ -510,7 +527,7 @@ $Apps = [ordered]@{
 
 $Window = [Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $Xaml))
 $ui = @{}
-foreach ($n in 'Logo','TabInstall','TabTweaks','Search','SearchHint','Status','InstallPage','TweaksPage','BtnInstall','BtnUpgrade',
+foreach ($n in 'Logo','BtnSupport','TabInstall','TabTweaks','Search','SearchHint','Status','InstallPage','TweaksPage','BtnInstall','BtnUpgrade',
                'BtnClearApps','AppCount','AppsPanel','TweaksPanel','BtnRecommended','BtnClearTweaks','ChkRestore','BtnRunTweaks','BtnUndo') {
     $ui[$n] = $Window.FindName($n)
 }
@@ -543,7 +560,10 @@ function New-AppIcon([string]$Name, [string]$Icon) {
     # Letter shown until the logo downloads (or if it fails / no internet)
     $circle = New-Object System.Windows.Controls.Border
     $circle.CornerRadius = New-Object System.Windows.CornerRadius(6)
-    $circle.Background = $Brush.ConvertFromString('#221d36')
+    # 'light:' prefix = dark logo, show it on a light badge so it stays visible
+    $light = $Icon.StartsWith('light:')
+    if ($light) { $Icon = $Icon.Substring(6) }
+    $circle.Background = $Brush.ConvertFromString($(if ($light) { '#ecebff' } else { '#221d36' }))
     $letter = New-Object System.Windows.Controls.TextBlock
     $letter.Text = $Name.Substring(0,1).ToUpper()
     $letter.Foreground = $Brush.ConvertFromString('#00f0ff')
@@ -553,7 +573,7 @@ function New-AppIcon([string]$Name, [string]$Icon) {
     [void]$grid.Children.Add($circle)
 
     $img = New-Object System.Windows.Controls.Image
-    $img.Width = 26; $img.Height = 26
+    $img.Width = $(if ($light) { 20 } else { 26 }); $img.Height = $img.Width
     [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, 'HighQuality')
     [void]$grid.Children.Add($img)
 
@@ -565,9 +585,10 @@ function New-AppIcon([string]$Name, [string]$Icon) {
         $bmp.UriSource = New-Object System.Uri($url)
         $bmp.DecodePixelWidth = 52
         $bmp.EndInit()
-        $c = $circle
+        # light badge stays visible behind the logo; otherwise the badge hides once the logo loads
+        $c = $(if ($light) { $letter } else { $circle })
         if ($bmp.IsDownloading) { $bmp.Add_DownloadCompleted({ $c.Visibility = 'Hidden' }.GetNewClosure()) }
-        else { $circle.Visibility = 'Hidden' }
+        else { $c.Visibility = 'Hidden' }
         $img.Source = $bmp
     } catch {}
     return $grid
@@ -667,6 +688,8 @@ function Start-Task([string]$Label, [string]$Body, [hashtable]$Vars = @{}) {
 
 # ============================ Events ============================
 $ui.TabInstall.Add_Click({ Show-Tab 'Install' })
+if ($SupportUrl) { $ui.BtnSupport.Add_Click({ Start-Process $SupportUrl }) }
+else { $ui.BtnSupport.Visibility = 'Collapsed' }
 $ui.TabTweaks.Add_Click({ Show-Tab 'Tweaks' })
 
 $ui.Search.Add_TextChanged({
